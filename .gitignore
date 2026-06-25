@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+
+logs/*
+!logs/.gitkeep
+
+temp/*
+!temp/.gitkeep
+
+*.aep
+*.avi
+*.mp4
+Adobe After Effects Auto-Save/
