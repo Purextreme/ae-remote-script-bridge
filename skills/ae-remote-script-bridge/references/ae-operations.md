@@ -4,6 +4,34 @@
 
 For destructive or multi-step edits, run `scripts/ae_inspect_project.jsx` before and after the change. Compare `logs/project_structure.json` to confirm the operation changed the intended comp, folder, layer, effect, or keyframe state.
 
+## Version and Documentation Checks
+
+Use simple local JSX for common operations covered below. For complex operations, version-sensitive APIs, effect/property match names, text/font APIs, 3D/model APIs, render/output modules, or repeated errors, check the scripting docs first:
+
+- `https://ae-scripting.docsforadobe.dev/`
+- `https://helpx.adobe.com/after-effects/using/scripts.html`
+- `https://developer.adobe.com/after-effects/`
+
+Probe the running AE version before relying on recent APIs:
+
+```javascript
+(function () {
+    var logsDir = $.global.AE_BRIDGE_LOGS_DIR;
+    var reportFile = new File(logsDir + "/ae_version_probe.json");
+
+    reportFile.encoding = "UTF-8";
+    reportFile.open("w");
+    reportFile.write("{");
+    reportFile.write('"version":"' + app.version + '"');
+    reportFile.write(',"buildName":"' + app.buildName + '"');
+    reportFile.write(',"buildNumber":' + app.buildNumber);
+    reportFile.write(',"isoLanguage":"' + app.isoLanguage + '"');
+    reportFile.write(',"hasFontsObject":' + (typeof app.fonts !== "undefined" ? "true" : "false"));
+    reportFile.write("}");
+    reportFile.close();
+})();
+```
+
 ## Create a Task Script
 
 Create a focused JSX script in `scripts/` for the requested operation. Keep it scoped to explicit names or selected/active items. Prefer a task-specific report file when the result cannot be fully captured by `ae_inspect_project.jsx`.
@@ -40,7 +68,31 @@ Add an effect:
 
 ```javascript
 var effects = layer.property("ADBE Effect Parade");
+if (!effects.canAddProperty("ADBE Gaussian Blur 2")) {
+    throw new Error("Effect is not available: ADBE Gaussian Blur 2");
+}
 var blur = effects.addProperty("ADBE Gaussian Blur 2");
+```
+
+Use first-party effect match names from the scripting guide. For example, Glow is `ADBE Glo2`, not `ADBE Glow`:
+
+```javascript
+var effects = layer.property("ADBE Effect Parade");
+if (!effects.canAddProperty("ADBE Glo2")) {
+    throw new Error("Effect is not available: ADBE Glo2");
+}
+var glow = effects.addProperty("ADBE Glo2");
+var glowIndex = glow.propertyIndex;
+glow = effects.property(glowIndex);
+glow.name = "Glow";
+```
+
+Discover installed effects from AE when needed:
+
+```javascript
+for (var i = 0; i < app.effects.length; i += 1) {
+    $.writeln(app.effects[i].displayName + " | " + app.effects[i].matchName);
+}
 ```
 
 Delete all effects:
