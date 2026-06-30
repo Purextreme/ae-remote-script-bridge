@@ -1,23 +1,23 @@
 # AE Remote Script Bridge Skill
 
-This repository contains one installable Codex skill:
+本仓库包含一个可安装的 Codex skill：
 
 ```text
 skills/ae-remote-script-bridge
 ```
 
-Copy that folder to another machine's Codex skills directory, for example:
+安装时，将该目录复制到目标机器的 Codex skills 目录，例如：
 
 ```text
 C:\Users\<user>\.codex\skills\ae-remote-script-bridge
 ```
 
-The skill includes:
+该 skill 包含：
 
-- a Windows `AfterFX.com` JSX bridge
-- AE ExtendScript rules and pitfalls
-- lightweight API and matchName reference tables
-- short task cards for common AE scripting work
-- a few reusable JSX templates
+- Windows `AfterFX.com` JSX bridge
+- AE ExtendScript 规则和常见坑
+- 轻量级 API 与 matchName 速查表
+- 常见 AE 脚本任务卡片
+- 可复用的 JSX 模板
 
-The bridge does not require a hardcoded AE path. It resolves `AfterFX.com` from `--afterfx`, `AFTERFX_COM_PATH`, optional local `config.json`, or automatic discovery under `C:\Program Files\Adobe`.
+bridge 不需要硬编码 AE 路径。它会按顺序从 `--afterfx`、`AFTERFX_COM_PATH`、可选的本地 `config.json`，或 `C:\Program Files\Adobe` 下的自动发现结果解析 `AfterFX.com`。
