@@ -43,6 +43,14 @@ bridge 不需要硬编码 AE 路径。它会按顺序从 `--afterfx`、`AFTERFX_
 python client\send_to_ae.py scripts\your_script.jsx --capture-frame --capture-time-mode two-thirds
 ```
 
-截图通过隔离 Render Queue 实现：临时禁用已有待渲染项，只渲染截图项，随后删除截图项并恢复原队列状态。输出图片会规范成 PNG 预览图，默认长边不超过 `1500px`。注意，AE 仍可能因为临时 Render Queue 操作把工程标记为有未保存改动；bridge 会在截图报告中标记 `dirtyChangedByCapture` 并输出 warning。
+默认截图使用临时 `8 bpc` 的 `saveFrameToPng` 预览路径：bridge 会记录原始项目位深，切到 `8 bpc` 导出当前帧，再恢复原始位深。这个方法不碰用户已有 Render Queue，适合 agent 做常规画面检查。输出图片会规范成 PNG 预览图，默认长边不超过 `1500px`。注意，AE 仍可能因为临时位深切换把工程标记为有未保存改动；bridge 会在截图报告中标记 `dirtyChangedByCapture` 并输出 warning。
+
+如果怀疑颜色、HDR、线性工作流或 32-bit 高亮结果不准，再显式使用 Render Queue 核对：
+
+```bat
+python client\send_to_ae.py scripts\your_script.jsx --capture-frame --capture-method render-queue --capture-time-mode two-thirds
+```
+
+Render Queue 截图会临时禁用已有待渲染项，只渲染截图项，随后删除截图项并恢复原队列状态。
 
 对于有动画的合成，agent 应根据任务选择检查时间帧：可以使用 `current`、`middle`、`two-thirds`、`end`，或通过 `--capture-time <seconds>` 指定具体时间。通常中部或中后部帧比第一帧更能暴露动画结果。

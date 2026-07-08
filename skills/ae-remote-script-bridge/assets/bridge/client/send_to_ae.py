@@ -256,7 +256,171 @@ def build_preflight_jsx(show_alert, allow_dirty):
     )
 
 
-def build_capture_jsx(capture_basename, time_mode, capture_time):
+def build_saveframe_8bpc_capture_jsx(capture_basename, time_mode, capture_time):
+    result_path = escape_extendscript_string(to_extendscript_path(CAPTURE_RESULT_PATH))
+    output_path = escape_extendscript_string(
+        to_extendscript_path(TEMP_DIR / (capture_basename + ".png"))
+    )
+    capture_time_text = "null" if capture_time is None else str(float(capture_time))
+
+    return """(function () {
+    var resultFile = new File("%s");
+    var outputFile = new File("%s");
+    var timeMode = "%s";
+    var requestedTime = %s;
+    var startedDirty = false;
+    var originalBits = 0;
+    var restoredBits = 0;
+    var originalTime = 0;
+
+    function escapeJson(value) {
+        var text = String(value);
+        text = text.replace(/\\\\/g, "\\\\\\\\");
+        text = text.replace(/"/g, '\\\\"');
+        text = text.replace(/\\r/g, "\\\\r");
+        text = text.replace(/\\n/g, "\\\\n");
+        text = text.replace(/\\t/g, "\\\\t");
+        return text;
+    }
+
+    function quoted(value) {
+        return '"' + escapeJson(value) + '"';
+    }
+
+    function fileExists(path) {
+        return (new File(path)).exists;
+    }
+
+    function removeFile(path) {
+        var file = new File(path);
+        if (file.exists) {
+            file.remove();
+        }
+    }
+
+    function waitForFile(path) {
+        var deadline = new Date().getTime() + 8000;
+        while (new Date().getTime() < deadline) {
+            if (fileExists(path)) {
+                return true;
+            }
+            $.sleep(100);
+        }
+        return false;
+    }
+
+    function writeResult(ok, message, comp, captureTime, outputPath) {
+        resultFile.encoding = "UTF-8";
+        resultFile.open("w");
+        resultFile.write("{");
+        resultFile.write('"ok":' + (ok ? "true" : "false"));
+        resultFile.write(',"message":' + quoted(message));
+        resultFile.write(',"method":"saveFrameToPng8Bpc"');
+        resultFile.write(',"fidelity":"preview"');
+        resultFile.write(',"compName":' + quoted(comp ? comp.name : ""));
+        resultFile.write(',"time":' + (captureTime !== null && captureTime !== undefined ? captureTime : 0));
+        resultFile.write(',"outputPath":' + quoted(outputPath || ""));
+        resultFile.write(',"outputExists":' + (outputPath && fileExists(outputPath) ? "true" : "false"));
+        resultFile.write(',"originalBitsPerChannel":' + originalBits);
+        resultFile.write(',"captureBitsPerChannel":8');
+        resultFile.write(',"restoredBitsPerChannel":' + restoredBits);
+        resultFile.write(',"startedDirty":' + (startedDirty ? "true" : "false"));
+        resultFile.write(',"endedDirty":' + (app.project && app.project.dirty ? "true" : "false"));
+        resultFile.write(',"dirtyChangedByCapture":' + (!startedDirty && app.project && app.project.dirty ? "true" : "false"));
+        resultFile.write("}");
+        resultFile.close();
+    }
+
+    function clampTime(comp, value) {
+        var start = comp.displayStartTime || 0;
+        var end = start + comp.duration - comp.frameDuration;
+        if (end < start) {
+            end = start;
+        }
+        if (value < start) {
+            return start;
+        }
+        if (value > end) {
+            return end;
+        }
+        return value;
+    }
+
+    function chooseTime(comp) {
+        var start = comp.displayStartTime || 0;
+        if (requestedTime !== null) {
+            return clampTime(comp, requestedTime);
+        }
+        if (timeMode === "middle") {
+            return clampTime(comp, start + comp.duration * 0.5);
+        }
+        if (timeMode === "two-thirds") {
+            return clampTime(comp, start + comp.duration * 0.6666667);
+        }
+        if (timeMode === "end") {
+            return clampTime(comp, start + comp.duration - comp.frameDuration);
+        }
+        return clampTime(comp, comp.time);
+    }
+
+    try {
+        if (!app.project) {
+            throw new Error("No open After Effects project.");
+        }
+
+        startedDirty = !!app.project.dirty;
+        originalBits = app.project.bitsPerChannel;
+
+        var comp = app.project.activeItem;
+        if (!(comp instanceof CompItem)) {
+            throw new Error("Active item is not a composition. Open or select the composition to capture.");
+        }
+        if (typeof comp.saveFrameToPng !== "function") {
+            throw new Error("saveFrameToPng is not available in this After Effects version.");
+        }
+
+        originalTime = comp.time;
+        var captureTime = chooseTime(comp);
+        removeFile(outputFile.fsName);
+
+        app.project.bitsPerChannel = 8;
+        comp.time = captureTime;
+        comp.openInViewer();
+        comp.saveFrameToPng(captureTime, outputFile);
+
+        if (!waitForFile(outputFile.fsName)) {
+            app.project.bitsPerChannel = originalBits;
+            restoredBits = app.project.bitsPerChannel;
+            comp.time = originalTime;
+            writeResult(false, "saveFrameToPng returned but no PNG output was found.", comp, captureTime, outputFile.fsName);
+            return;
+        }
+
+        app.project.bitsPerChannel = originalBits;
+        restoredBits = app.project.bitsPerChannel;
+        comp.time = originalTime;
+        writeResult(true, "Frame captured successfully.", comp, captureTime, outputFile.fsName);
+    } catch (err) {
+        try {
+            app.project.bitsPerChannel = originalBits;
+            restoredBits = app.project.bitsPerChannel;
+            var activeComp = app.project.activeItem;
+            if (activeComp instanceof CompItem) {
+                activeComp.time = originalTime;
+            }
+        } catch (restoreErr) {
+        }
+        writeResult(false, err.toString() + " Line: " + (err.line || 0), null, 0, "");
+    }
+})();""" % (
+        result_path,
+        output_path,
+        escape_extendscript_string(time_mode),
+        capture_time_text,
+    )
+
+
+def build_render_queue_capture_jsx(capture_basename, time_mode, capture_time):
     result_path = escape_extendscript_string(to_extendscript_path(CAPTURE_RESULT_PATH))
     output_base = escape_extendscript_string(
         to_extendscript_path(TEMP_DIR / (capture_basename + ".png"))
@@ -632,6 +796,12 @@ def main():
         help="After the script finishes, capture the active comp frame for visual inspection.",
     )
     parser.add_argument(
+        "--capture-method",
+        choices=["saveframe-8bpc", "render-queue"],
+        default="saveframe-8bpc",
+        help="Frame capture method. Default is a fast 8-bpc saveFrameToPng preview; use render-queue for color-fidelity checks.",
+    )
+    parser.add_argument(
         "--capture-time-mode",
         choices=["current", "middle", "two-thirds", "end"],
         default="current",
@@ -761,13 +931,21 @@ def main():
                 "%Y%m%d_%H%M%S_%f"
             )
             capture_path = TEMP_DIR / "ae_bridge_capture_frame.jsx"
-            write_text_file(
-                capture_path,
-                build_capture_jsx(
+            if args.capture_method == "render-queue":
+                capture_jsx = build_render_queue_capture_jsx(
                     capture_basename,
                     args.capture_time_mode,
                     args.capture_time,
-                ),
+                )
+            else:
+                capture_jsx = build_saveframe_8bpc_capture_jsx(
+                    capture_basename,
+                    args.capture_time_mode,
+                    args.capture_time,
+                )
+            write_text_file(
+                capture_path,
+                capture_jsx,
             )
             try:
                 capture_result = run_afterfx_script(
@@ -794,13 +972,14 @@ def main():
                 return fail("[AE CAPTURE ERROR]\n" + str(err))
 
             print("[AE CAPTURE OK]")
+            print("Method: " + capture_result.get("method", ""))
             print("Comp: " + capture_result.get("compName", ""))
             print("Time: " + str(capture_result.get("time", "")))
             print("Output: " + capture_result.get("outputPath", ""))
             print("Preview: " + capture_result.get("previewPath", ""))
             if capture_result.get("dirtyChangedByCapture"):
                 print("[AE CAPTURE WARNING]")
-                print("Frame capture restored the queue but marked the project dirty.")
+                print("Frame capture restored transient settings but marked the project dirty.")
         return 0
 
     print("[AE ERROR]")

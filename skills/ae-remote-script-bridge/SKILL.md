@@ -94,7 +94,15 @@ For key visual operations or after a batch of changes, request a frame capture i
 python client\send_to_ae.py scripts\your_script.jsx --capture-frame --capture-time-mode two-thirds
 ```
 
-Use `--capture-time-mode current`, `middle`, `two-thirds`, or `end`, or pass `--capture-time <seconds>`. For animated comps, choose a middle or middle-late frame when it better represents the result. The bridge captures the active composition through an isolated Render Queue item, restores existing queued items, then writes a resized preview PNG with a long edge of at most 1500 px. AE may still mark the project dirty because Render Queue was touched; the capture report includes `dirtyChangedByCapture` and the client prints a warning when this happens.
+Use `--capture-time-mode current`, `middle`, `two-thirds`, or `end`, or pass `--capture-time <seconds>`. For animated comps, choose a middle or middle-late frame when it better represents the result. By default, the bridge captures a preview by temporarily switching the project to `8 bpc`, calling `saveFrameToPng`, and restoring the original bit depth. This avoids touching the user's Render Queue and is usually sufficient for agent visual checks. The bridge writes a resized preview PNG with a long edge of at most 1500 px. AE may still mark the project dirty because the project bit depth was touched; the capture report includes `dirtyChangedByCapture` and the client prints a warning when this happens.
+
+If colors look suspicious, or if the project depends on HDR, linear workflow, or 32-bit highlights, verify with the Render Queue capture path:
+
+```bat
+python client\send_to_ae.py scripts\your_script.jsx --capture-frame --capture-method render-queue --capture-time-mode two-thirds
+```
+
+The Render Queue method isolates the capture item, temporarily disables existing queued items, restores them, and removes the capture item after rendering.
 
 ## Verification Workflow
 
@@ -106,7 +114,7 @@ python client\send_to_ae.py --no-protect scripts\ae_inspect_project.jsx
 
 Then read `logs/project_structure.json` and compare concrete facts: comp names, dimensions, duration, layer names, text, source names, effect counts, keyframe counts, output files, and saved project paths.
 
-When visual appearance matters, also capture a frame after the operation or batch. Do not capture after every tiny change. Prefer `--capture-time-mode middle` or `--capture-time-mode two-thirds` for animated comps unless the user's request points to a specific time.
+When visual appearance matters, also capture a frame after the operation or batch. Do not capture after every tiny change. Prefer `--capture-time-mode middle` or `--capture-time-mode two-thirds` for animated comps unless the user's request points to a specific time. Use the default `saveframe-8bpc` capture for routine checks; use `--capture-method render-queue` only when color fidelity needs confirmation.
 
 For version-sensitive work, write a tiny probe script that reports `app.version`, `app.buildName`, `app.buildNumber`, `app.isoLanguage`, and feature availability checks:
 
@@ -193,7 +201,7 @@ Output and expressions:
 - Avoid `alert()` in normal workflows.
 - Prefer `$.writeln()` or writing a small report file.
 - With this bridge, prefer `$.global.AE_BRIDGE_LOGS_DIR` for reports.
-- After key visual edits or a long batch of changes, use `--capture-frame` so the agent can inspect a rendered PNG. Avoid capture for routine read-only checks because AE may mark the project dirty after temporary Render Queue use.
+- After key visual edits or a long batch of changes, use `--capture-frame` so the agent can inspect a rendered PNG. Avoid capture for routine read-only checks because AE may mark the project dirty after temporary bit-depth changes. Use `--capture-method render-queue` only when the default preview has obvious color issues or needs high-fidelity confirmation.
 - Scripting API and expression runtime are separate. `property.expression = "..."` assigns an expression string; it does not mean expression APIs are available to JSX.
 - Check `property.canSetExpression` before setting expressions.
 
