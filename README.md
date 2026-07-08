@@ -54,3 +54,13 @@ python client\send_to_ae.py scripts\your_script.jsx --capture-frame --capture-me
 Render Queue 截图会临时禁用已有待渲染项，只渲染截图项，随后删除截图项并恢复原队列状态。
 
 对于有动画的合成，agent 应根据任务选择检查时间帧：可以使用 `current`、`middle`、`two-thirds`、`end`，或通过 `--capture-time <seconds>` 指定具体时间。通常中部或中后部帧比第一帧更能暴露动画结果。
+
+如果本轮操作涉及动画、转场、时间错位或多次连续改动，可以额外生成低帧率预览视频供 agent 做最终检查：
+
+```bat
+python client\send_to_ae.py scripts\your_script.jsx --capture-video
+```
+
+视频预览同样走临时 `8 bpc` 的 `saveFrameToPng` 路径，不使用 Render Queue。bridge 会按当前合成时长均匀抽样 PNG 序列，再生成 `preview.mp4` 和 `preview_contact_sheet.png`。默认最多抽 `48` 帧、以 `4fps` 播放、长边不超过 `960px`，适合检查动画节奏和关键画面变化，不作为最终画质渲染。临时结果保存在 `temp\preview_videos\` 下并滚动保留最近 `10` 次，同时会更新 `latest_video_capture_preview.mp4` 和 `latest_video_capture_contact_sheet.png`。
+
+如果只是静态合成或只改了单帧视觉，不需要生成视频；继续使用 `--capture-frame` 更快。

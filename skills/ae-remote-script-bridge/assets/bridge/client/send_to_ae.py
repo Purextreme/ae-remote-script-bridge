@@ -9,12 +9,28 @@ import sys
 import time
 from pathlib import Path
 
+from capture_preview import (
+    CAPTURE_RESULT_PATH,
+    DEFAULT_CAPTURE_MAX_EDGE,
+    DEFAULT_VIDEO_CAPTURE_FPS,
+    DEFAULT_VIDEO_CAPTURE_MAX_EDGE,
+    DEFAULT_VIDEO_CAPTURE_MAX_FRAMES,
+    MAX_VIDEO_CAPTURE_RUNS,
+    VIDEO_CAPTURE_RESULT_PATH,
+    build_render_queue_capture_jsx,
+    build_saveframe_8bpc_capture_jsx,
+    build_saveframe_8bpc_sequence_capture_jsx,
+    create_video_capture_dir,
+    normalize_capture,
+    normalize_video_capture,
+    prune_video_capture_runs,
+)
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = PROJECT_ROOT / "config.json"
 RESULT_PATH = PROJECT_ROOT / "logs" / "latest_result.json"
 PREFLIGHT_RESULT_PATH = PROJECT_ROOT / "logs" / "preflight_result.json"
-CAPTURE_RESULT_PATH = PROJECT_ROOT / "logs" / "frame_capture_result.json"
 PROTECTION_STATE_PATH = PROJECT_ROOT / "logs" / "protection_state.json"
 TEMP_DIR = PROJECT_ROOT / "temp"
 TIMEOUT_SECONDS = 20
@@ -22,7 +38,6 @@ DEFAULT_ADOBE_DIR = Path("C:/Program Files/Adobe")
 BACKUP_PREFIX = "agent backup"
 BACKUP_DIR_NAME = "agent backups"
 MAX_BACKUPS = 10
-DEFAULT_CAPTURE_MAX_EDGE = 1500
 
 
 def fail(message):
@@ -256,391 +271,8 @@ def build_preflight_jsx(show_alert, allow_dirty):
     )
 
 
-def build_saveframe_8bpc_capture_jsx(capture_basename, time_mode, capture_time):
-    result_path = escape_extendscript_string(to_extendscript_path(CAPTURE_RESULT_PATH))
-    output_path = escape_extendscript_string(
-        to_extendscript_path(TEMP_DIR / (capture_basename + ".png"))
-    )
-    capture_time_text = "null" if capture_time is None else str(float(capture_time))
-
-    return """(function () {
-    var resultFile = new File("%s");
-    var outputFile = new File("%s");
-    var timeMode = "%s";
-    var requestedTime = %s;
-    var startedDirty = false;
-    var originalBits = 0;
-    var restoredBits = 0;
-    var originalTime = 0;
-
-    function escapeJson(value) {
-        var text = String(value);
-        text = text.replace(/\\\\/g, "\\\\\\\\");
-        text = text.replace(/"/g, '\\\\"');
-        text = text.replace(/\\r/g, "\\\\r");
-        text = text.replace(/\\n/g, "\\\\n");
-        text = text.replace(/\\t/g, "\\\\t");
-        return text;
-    }
-
-    function quoted(value) {
-        return '"' + escapeJson(value) + '"';
-    }
-
-    function fileExists(path) {
-        return (new File(path)).exists;
-    }
-
-    function removeFile(path) {
-        var file = new File(path);
-        if (file.exists) {
-            file.remove();
-        }
-    }
-
-    function waitForFile(path) {
-        var deadline = new Date().getTime() + 8000;
-        while (new Date().getTime() < deadline) {
-            if (fileExists(path)) {
-                return true;
-            }
-            $.sleep(100);
-        }
-        return false;
-    }
-
-    function writeResult(ok, message, comp, captureTime, outputPath) {
-        resultFile.encoding = "UTF-8";
-        resultFile.open("w");
-        resultFile.write("{");
-        resultFile.write('"ok":' + (ok ? "true" : "false"));
-        resultFile.write(',"message":' + quoted(message));
-        resultFile.write(',"method":"saveFrameToPng8Bpc"');
-        resultFile.write(',"fidelity":"preview"');
-        resultFile.write(',"compName":' + quoted(comp ? comp.name : ""));
-        resultFile.write(',"time":' + (captureTime !== null && captureTime !== undefined ? captureTime : 0));
-        resultFile.write(',"outputPath":' + quoted(outputPath || ""));
-        resultFile.write(',"outputExists":' + (outputPath && fileExists(outputPath) ? "true" : "false"));
-        resultFile.write(',"originalBitsPerChannel":' + originalBits);
-        resultFile.write(',"captureBitsPerChannel":8');
-        resultFile.write(',"restoredBitsPerChannel":' + restoredBits);
-        resultFile.write(',"startedDirty":' + (startedDirty ? "true" : "false"));
-        resultFile.write(',"endedDirty":' + (app.project && app.project.dirty ? "true" : "false"));
-        resultFile.write(',"dirtyChangedByCapture":' + (!startedDirty && app.project && app.project.dirty ? "true" : "false"));
-        resultFile.write("}");
-        resultFile.close();
-    }
-
-    function clampTime(comp, value) {
-        var start = comp.displayStartTime || 0;
-        var end = start + comp.duration - comp.frameDuration;
-        if (end < start) {
-            end = start;
-        }
-        if (value < start) {
-            return start;
-        }
-        if (value > end) {
-            return end;
-        }
-        return value;
-    }
-
-    function chooseTime(comp) {
-        var start = comp.displayStartTime || 0;
-        if (requestedTime !== null) {
-            return clampTime(comp, requestedTime);
-        }
-        if (timeMode === "middle") {
-            return clampTime(comp, start + comp.duration * 0.5);
-        }
-        if (timeMode === "two-thirds") {
-            return clampTime(comp, start + comp.duration * 0.6666667);
-        }
-        if (timeMode === "end") {
-            return clampTime(comp, start + comp.duration - comp.frameDuration);
-        }
-        return clampTime(comp, comp.time);
-    }
-
-    try {
-        if (!app.project) {
-            throw new Error("No open After Effects project.");
-        }
-
-        startedDirty = !!app.project.dirty;
-        originalBits = app.project.bitsPerChannel;
-
-        var comp = app.project.activeItem;
-        if (!(comp instanceof CompItem)) {
-            throw new Error("Active item is not a composition. Open or select the composition to capture.");
-        }
-        if (typeof comp.saveFrameToPng !== "function") {
-            throw new Error("saveFrameToPng is not available in this After Effects version.");
-        }
-
-        originalTime = comp.time;
-        var captureTime = chooseTime(comp);
-        removeFile(outputFile.fsName);
-
-        app.project.bitsPerChannel = 8;
-        comp.time = captureTime;
-        comp.openInViewer();
-        comp.saveFrameToPng(captureTime, outputFile);
-
-        if (!waitForFile(outputFile.fsName)) {
-            app.project.bitsPerChannel = originalBits;
-            restoredBits = app.project.bitsPerChannel;
-            comp.time = originalTime;
-            writeResult(false, "saveFrameToPng returned but no PNG output was found.", comp, captureTime, outputFile.fsName);
-            return;
-        }
-
-        app.project.bitsPerChannel = originalBits;
-        restoredBits = app.project.bitsPerChannel;
-        comp.time = originalTime;
-        writeResult(true, "Frame captured successfully.", comp, captureTime, outputFile.fsName);
-    } catch (err) {
-        try {
-            app.project.bitsPerChannel = originalBits;
-            restoredBits = app.project.bitsPerChannel;
-            var activeComp = app.project.activeItem;
-            if (activeComp instanceof CompItem) {
-                activeComp.time = originalTime;
-            }
-        } catch (restoreErr) {
-        }
-        writeResult(false, err.toString() + " Line: " + (err.line || 0), null, 0, "");
-    }
-})();""" % (
-        result_path,
-        output_path,
-        escape_extendscript_string(time_mode),
-        capture_time_text,
-    )
-
-
-def build_render_queue_capture_jsx(capture_basename, time_mode, capture_time):
-    result_path = escape_extendscript_string(to_extendscript_path(CAPTURE_RESULT_PATH))
-    output_base = escape_extendscript_string(
-        to_extendscript_path(TEMP_DIR / (capture_basename + ".png"))
-    )
-    capture_time_text = "null" if capture_time is None else str(float(capture_time))
-
-    return """(function () {
-    var resultFile = new File("%s");
-    var outputBase = new File("%s");
-    var timeMode = "%s";
-    var requestedTime = %s;
-    var captureItem = null;
-    var disabledItems = [];
-    var disabledNames = [];
-    var queueRestored = false;
-    var captureItemRemoved = false;
-    var startedDirty = false;
-
-    function escapeJson(value) {
-        var text = String(value);
-        text = text.replace(/\\\\/g, "\\\\\\\\");
-        text = text.replace(/"/g, '\\\\"');
-        text = text.replace(/\\r/g, "\\\\r");
-        text = text.replace(/\\n/g, "\\\\n");
-        text = text.replace(/\\t/g, "\\\\t");
-        return text;
-    }
-
-    function quoted(value) {
-        return '"' + escapeJson(value) + '"';
-    }
-
-    function fileExists(path) {
-        return (new File(path)).exists;
-    }
-
-    function removeFile(path) {
-        var file = new File(path);
-        if (file.exists) {
-            file.remove();
-        }
-    }
-
-    function writeStringArray(name, values) {
-        var i;
-        resultFile.write(',"' + name + '":[');
-        for (i = 0; i < values.length; i += 1) {
-            if (i > 0) {
-                resultFile.write(",");
-            }
-            resultFile.write(quoted(values[i]));
-        }
-        resultFile.write("]");
-    }
-
-    function writeResult(ok, message, comp, captureTime, outputPath) {
-        resultFile.encoding = "UTF-8";
-        resultFile.open("w");
-        resultFile.write("{");
-        resultFile.write('"ok":' + (ok ? "true" : "false"));
-        resultFile.write(',"message":' + quoted(message));
-        resultFile.write(',"method":"isolatedRenderQueue"');
-        resultFile.write(',"compName":' + quoted(comp ? comp.name : ""));
-        resultFile.write(',"time":' + (captureTime !== null && captureTime !== undefined ? captureTime : 0));
-        resultFile.write(',"outputPath":' + quoted(outputPath || ""));
-        resultFile.write(',"outputExists":' + (outputPath && fileExists(outputPath) ? "true" : "false"));
-        resultFile.write(',"queueRestored":' + (queueRestored ? "true" : "false"));
-        resultFile.write(',"captureItemRemoved":' + (captureItemRemoved ? "true" : "false"));
-        resultFile.write(',"startedDirty":' + (startedDirty ? "true" : "false"));
-        resultFile.write(',"endedDirty":' + (app.project && app.project.dirty ? "true" : "false"));
-        resultFile.write(',"dirtyChangedByCapture":' + (!startedDirty && app.project && app.project.dirty ? "true" : "false"));
-        writeStringArray("disabledItems", disabledNames);
-        resultFile.write("}");
-        resultFile.close();
-    }
-
-    function restoreDisabledItems() {
-        var i;
-        for (i = 0; i < disabledItems.length; i += 1) {
-            try {
-                disabledItems[i].render = true;
-            } catch (restoreErr) {
-            }
-        }
-        queueRestored = true;
-    }
-
-    function removeCaptureItem() {
-        if (captureItem) {
-            try {
-                captureItem.remove();
-            } catch (removeErr) {
-            }
-            captureItem = null;
-        }
-        captureItemRemoved = true;
-    }
-
-    function clampTime(comp, value) {
-        var start = comp.displayStartTime || 0;
-        var end = start + comp.duration - comp.frameDuration;
-        if (end < start) {
-            end = start;
-        }
-        if (value < start) {
-            return start;
-        }
-        if (value > end) {
-            return end;
-        }
-        return value;
-    }
-
-    function chooseTime(comp) {
-        var start = comp.displayStartTime || 0;
-        if (requestedTime !== null) {
-            return clampTime(comp, requestedTime);
-        }
-        if (timeMode === "middle") {
-            return clampTime(comp, start + comp.duration * 0.5);
-        }
-        if (timeMode === "two-thirds") {
-            return clampTime(comp, start + comp.duration * 0.6666667);
-        }
-        if (timeMode === "end") {
-            return clampTime(comp, start + comp.duration - comp.frameDuration);
-        }
-        return clampTime(comp, comp.time);
-    }
-
-    function findOutputFile() {
-        var base = outputBase.fsName;
-        var candidates = [
-            base,
-            base + "00000",
-            base.replace(/\\.png$/i, "_00000.png"),
-            base.replace(/\\.png$/i, "_[00000].png")
-        ];
-        var i;
-        for (i = 0; i < candidates.length; i += 1) {
-            if (fileExists(candidates[i])) {
-                return candidates[i];
-            }
-        }
-
-        var matches = outputBase.parent.getFiles(outputBase.name + "*");
-        if (matches.length > 0) {
-            return matches[0].fsName;
-        }
-        return "";
-    }
-
-    try {
-        if (!app.project) {
-            throw new Error("No open After Effects project.");
-        }
-        if (app.project.renderQueue.rendering) {
-            throw new Error("Render Queue is currently rendering. Cannot safely capture a frame.");
-        }
-        startedDirty = !!app.project.dirty;
-
-        var comp = app.project.activeItem;
-        if (!(comp instanceof CompItem)) {
-            throw new Error("Active item is not a composition. Open or select the composition to capture.");
-        }
-
-        removeFile(outputBase.fsName);
-        removeFile(outputBase.fsName + "00000");
-        removeFile(outputBase.fsName.replace(/\\.png$/i, "_00000.png"));
-        removeFile(outputBase.fsName.replace(/\\.png$/i, "_[00000].png"));
-
-        var captureTime = chooseTime(comp);
-        comp.time = captureTime;
-        comp.openInViewer();
-
-        var i;
-        for (i = 1; i <= app.project.renderQueue.numItems; i += 1) {
-            var rqItem = app.project.renderQueue.item(i);
-            if (rqItem.render && rqItem.status === RQItemStatus.QUEUED) {
-                rqItem.render = false;
-                disabledItems.push(rqItem);
-                disabledNames.push(rqItem.comp ? rqItem.comp.name : "Unknown");
-            }
-        }
-
-        captureItem = app.project.renderQueue.items.add(comp);
-        captureItem.applyTemplate("Best Settings");
-        captureItem.timeSpanStart = captureTime;
-        captureItem.timeSpanDuration = comp.frameDuration;
-        captureItem.outputModule(1).applyTemplate("PNG");
-        captureItem.outputModule(1).file = outputBase;
-        captureItem.render = true;
-
-        app.project.renderQueue.render();
-
-        var outputPath = findOutputFile();
-        removeCaptureItem();
-        restoreDisabledItems();
-
-        if (outputPath === "") {
-            writeResult(false, "Render Queue completed but no PNG output was found.", comp, captureTime, "");
-            return;
-        }
-
-        writeResult(true, "Frame captured successfully.", comp, captureTime, outputPath);
-    } catch (err) {
-        removeCaptureItem();
-        restoreDisabledItems();
-        writeResult(false, err.toString() + " Line: " + (err.line || 0), null, 0, "");
-    }
-})();""" % (
-        result_path,
-        output_base,
-        escape_extendscript_string(time_mode),
-        capture_time_text,
-    )
-
-
-def wait_for_result(result_path):
-    deadline = time.time() + TIMEOUT_SECONDS
+def wait_for_result(result_path, timeout_seconds=TIMEOUT_SECONDS):
+    deadline = time.time() + timeout_seconds
     last_error = None
     while time.time() < deadline:
         if result_path.exists():
@@ -655,14 +287,16 @@ def wait_for_result(result_path):
     return None
 
 
-def run_afterfx_script(afterfx_com_path, jsx_path, result_path):
+def run_afterfx_script(
+    afterfx_com_path, jsx_path, result_path, timeout_seconds=TIMEOUT_SECONDS
+):
     if result_path.exists():
         result_path.unlink()
 
     subprocess.run([str(afterfx_com_path), "-r", str(jsx_path)])
 
     try:
-        return wait_for_result(result_path)
+        return wait_for_result(result_path, timeout_seconds)
     except (OSError, json.JSONDecodeError) as err:
         raise RuntimeError("Could not read result file: " + str(err))
 
@@ -730,43 +364,6 @@ def set_operation_state(operation_id, project_file, backup_path):
     save_protection_state(state)
 
 
-def normalize_capture(capture_result, max_edge):
-    output_path = Path(capture_result.get("outputPath", ""))
-    if not output_path.exists():
-        raise FileNotFoundError("Captured frame not found: " + str(output_path))
-
-    preview_path = TEMP_DIR / "latest_frame_capture_preview.png"
-
-    try:
-        from PIL import Image
-    except ImportError:
-        shutil.copy2(output_path, preview_path)
-        if max_edge > 0:
-            print("[AE CAPTURE WARNING]")
-            print("Pillow is not installed; copied full-size capture without resizing.")
-        capture_result["previewPath"] = str(preview_path)
-        CAPTURE_RESULT_PATH.write_text(
-            json.dumps(capture_result, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        return capture_result
-
-    with Image.open(output_path) as image:
-        image = image.copy()
-        if max_edge > 0:
-            image.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
-        image.save(preview_path)
-
-    capture_result["previewPath"] = str(preview_path)
-    capture_result["previewWidth"] = image.width
-    capture_result["previewHeight"] = image.height
-    CAPTURE_RESULT_PATH.write_text(
-        json.dumps(capture_result, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    return capture_result
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="Send a JSX file to Adobe After Effects through AfterFX.com."
@@ -818,7 +415,43 @@ def main():
         default=DEFAULT_CAPTURE_MAX_EDGE,
         help="Resize captured preview so its long edge is at most this size. Use 0 to keep original size.",
     )
+    parser.add_argument(
+        "--capture-video",
+        action="store_true",
+        help="After the script finishes, capture a low-frame-rate preview video of the active comp for animation inspection.",
+    )
+    parser.add_argument(
+        "--capture-video-fps",
+        type=float,
+        default=DEFAULT_VIDEO_CAPTURE_FPS,
+        help="Sample and playback fps for --capture-video. Long comps are capped by --capture-video-max-frames.",
+    )
+    parser.add_argument(
+        "--capture-video-max-frames",
+        type=int,
+        default=DEFAULT_VIDEO_CAPTURE_MAX_FRAMES,
+        help="Maximum number of frames to sample for --capture-video. Use 0 to disable the cap.",
+    )
+    parser.add_argument(
+        "--capture-video-max-edge",
+        type=int,
+        default=DEFAULT_VIDEO_CAPTURE_MAX_EDGE,
+        help="Resize video preview frames so their long edge is at most this size. Use 0 to keep original size.",
+    )
+    parser.add_argument(
+        "--capture-video-keep-runs",
+        type=int,
+        default=MAX_VIDEO_CAPTURE_RUNS,
+        help="Keep this many timestamped video preview folders under temp/preview_videos.",
+    )
     args = parser.parse_args()
+
+    if args.capture_video_fps <= 0:
+        return fail("[INPUT ERROR]\n--capture-video-fps must be greater than 0.")
+    if args.capture_video_max_frames < 0:
+        return fail("[INPUT ERROR]\n--capture-video-max-frames cannot be negative.")
+    if args.capture_video_keep_runs < 1:
+        return fail("[INPUT ERROR]\n--capture-video-keep-runs must be at least 1.")
 
     try:
         afterfx_com_path = resolve_afterfx_path(args.afterfx)
@@ -980,6 +613,73 @@ def main():
             if capture_result.get("dirtyChangedByCapture"):
                 print("[AE CAPTURE WARNING]")
                 print("Frame capture restored transient settings but marked the project dirty.")
+
+        if args.capture_video:
+            prune_video_capture_runs(args.capture_video_keep_runs - 1)
+            capture_dir = create_video_capture_dir()
+            capture_path = TEMP_DIR / "ae_bridge_capture_video.jsx"
+            capture_jsx = build_saveframe_8bpc_sequence_capture_jsx(
+                capture_dir,
+                args.capture_video_fps,
+                args.capture_video_max_frames,
+            )
+            write_text_file(capture_path, capture_jsx)
+            try:
+                video_timeout = max(
+                    TIMEOUT_SECONDS,
+                    (args.capture_video_max_frames or 120) * 2,
+                )
+                video_result = run_afterfx_script(
+                    afterfx_com_path,
+                    capture_path,
+                    VIDEO_CAPTURE_RESULT_PATH,
+                    video_timeout,
+                )
+            except RuntimeError as err:
+                return fail("[AE VIDEO CAPTURE ERROR]\n" + str(err))
+
+            if video_result is None:
+                print("[AE VIDEO CAPTURE TIMEOUT]")
+                print("No video capture result file generated.")
+                return 1
+
+            if not video_result.get("ok"):
+                print("[AE VIDEO CAPTURE ERROR]")
+                print(video_result.get("message", "Video capture failed."))
+                return 1
+
+            try:
+                video_result = normalize_video_capture(
+                    video_result,
+                    args.capture_video_max_edge,
+                    args.capture_video_fps,
+                )
+            except (OSError, RuntimeError, ValueError) as err:
+                return fail("[AE VIDEO CAPTURE ERROR]\n" + str(err))
+
+            prune_video_capture_runs(args.capture_video_keep_runs)
+
+            print("[AE VIDEO CAPTURE OK]")
+            print("Method: " + video_result.get("method", ""))
+            print("Comp: " + video_result.get("compName", ""))
+            print("Frames: " + str(video_result.get("frameCount", "")))
+            print("FPS: " + str(video_result.get("playbackFps", "")))
+            print("Output Dir: " + video_result.get("outputDir", ""))
+            if video_result.get("videoPath"):
+                print("Video: " + video_result.get("videoPath", ""))
+                print("Latest Video: " + video_result.get("latestVideoPath", ""))
+            if video_result.get("contactSheetPath"):
+                print("Contact Sheet: " + video_result.get("contactSheetPath", ""))
+                print(
+                    "Latest Contact Sheet: "
+                    + video_result.get("latestContactSheetPath", "")
+                )
+            if video_result.get("videoWarning"):
+                print("[AE VIDEO CAPTURE WARNING]")
+                print(video_result.get("videoWarning", ""))
+            if video_result.get("dirtyChangedByCapture"):
+                print("[AE VIDEO CAPTURE WARNING]")
+                print("Video capture restored transient settings but marked the project dirty.")
         return 0
 
     print("[AE ERROR]")

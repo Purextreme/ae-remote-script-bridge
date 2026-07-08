@@ -104,6 +104,14 @@ python client\send_to_ae.py scripts\your_script.jsx --capture-frame --capture-me
 
 The Render Queue method isolates the capture item, temporarily disables existing queued items, restores them, and removes the capture item after rendering.
 
+For animated comps or after a batch of timing-sensitive changes, request a low-frame-rate preview video instead of relying only on a still frame:
+
+```bat
+python client\send_to_ae.py scripts\your_script.jsx --capture-video
+```
+
+Use this only when animation, transitions, temporal effects, or multiple sequential edits need visual verification. The preview video path temporarily switches the project to `8 bpc`, captures a capped PNG sequence with `saveFrameToPng`, restores the original bit depth, then assembles a `preview.mp4` and `preview_contact_sheet.png` on the Python side. It does not use or modify Render Queue. Defaults are 4 fps playback, at most 48 sampled frames, 960 px max edge, and 10 rolling timestamped preview folders under `temp/preview_videos/`. Treat this as an agent inspection preview, not a final color-fidelity render.
+
 ## Verification Workflow
 
 After any meaningful AE operation, run:
@@ -114,7 +122,7 @@ python client\send_to_ae.py --no-protect scripts\ae_inspect_project.jsx
 
 Then read `logs/project_structure.json` and compare concrete facts: comp names, dimensions, duration, layer names, text, source names, effect counts, keyframe counts, output files, and saved project paths.
 
-When visual appearance matters, also capture a frame after the operation or batch. Do not capture after every tiny change. Prefer `--capture-time-mode middle` or `--capture-time-mode two-thirds` for animated comps unless the user's request points to a specific time. Use the default `saveframe-8bpc` capture for routine checks; use `--capture-method render-queue` only when color fidelity needs confirmation.
+When visual appearance matters, also capture a frame after the operation or batch. Do not capture after every tiny change. Prefer `--capture-time-mode middle` or `--capture-time-mode two-thirds` for animated comps unless the user's request points to a specific time. Use the default `saveframe-8bpc` capture for routine checks; use `--capture-method render-queue` only when color fidelity needs confirmation. If the comp has meaningful animation or the task changed timing across several moments, use `--capture-video` once at the end so the agent can inspect both the generated MP4 and contact sheet.
 
 For version-sensitive work, write a tiny probe script that reports `app.version`, `app.buildName`, `app.buildNumber`, `app.isoLanguage`, and feature availability checks:
 
@@ -201,7 +209,7 @@ Output and expressions:
 - Avoid `alert()` in normal workflows.
 - Prefer `$.writeln()` or writing a small report file.
 - With this bridge, prefer `$.global.AE_BRIDGE_LOGS_DIR` for reports.
-- After key visual edits or a long batch of changes, use `--capture-frame` so the agent can inspect a rendered PNG. Avoid capture for routine read-only checks because AE may mark the project dirty after temporary bit-depth changes. Use `--capture-method render-queue` only when the default preview has obvious color issues or needs high-fidelity confirmation.
+- After key visual edits or a long batch of changes, use `--capture-frame` so the agent can inspect a rendered PNG. For animated comps or timing-sensitive work, use `--capture-video` once at the end instead of depending only on a still frame. Avoid capture for routine read-only checks because AE may mark the project dirty after temporary bit-depth changes. Use `--capture-method render-queue` only when the default preview has obvious color issues or needs high-fidelity confirmation.
 - Scripting API and expression runtime are separate. `property.expression = "..."` assigns an expression string; it does not mean expression APIs are available to JSX.
 - Check `property.canSetExpression` before setting expressions.
 
