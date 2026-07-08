@@ -435,10 +435,10 @@ def build_capture_jsx(capture_basename, time_mode, capture_time):
         var i;
         for (i = 1; i <= app.project.renderQueue.numItems; i += 1) {
             var rqItem = app.project.renderQueue.item(i);
-            if (rqItem.render) {
+            if (rqItem.render && rqItem.status === RQItemStatus.QUEUED) {
+                rqItem.render = false;
                 disabledItems.push(rqItem);
                 disabledNames.push(rqItem.comp ? rqItem.comp.name : "Unknown");
-                rqItem.render = false;
             }
         }
 
@@ -477,11 +477,17 @@ def build_capture_jsx(capture_basename, time_mode, capture_time):
 
 def wait_for_result(result_path):
     deadline = time.time() + TIMEOUT_SECONDS
+    last_error = None
     while time.time() < deadline:
         if result_path.exists():
-            with result_path.open("r", encoding="utf-8-sig") as result_file:
-                return json.load(result_file)
+            try:
+                with result_path.open("r", encoding="utf-8-sig") as result_file:
+                    return json.load(result_file)
+            except json.JSONDecodeError as err:
+                last_error = err
         time.sleep(0.2)
+    if last_error is not None:
+        raise last_error
     return None
 
 
