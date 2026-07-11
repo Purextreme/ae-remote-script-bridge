@@ -15,10 +15,11 @@ Use this card when constructing icons, controls, diagrams, or UI animation with 
 
 1. Identify the object's canonical geometry before copying reference-image perspective or rotation.
 2. Build regular geometry with Rectangle, Ellipse, or Polystar paths; use a Bezier `Shape` only for a custom silhouette.
-3. Center each icon part around local `[0, 0]`, then place it with the vector group's Transform.
-4. Keep independently styled or animated parts in separate named vector groups.
-5. Add geometry first, then the operators and Fill/Stroke that should act on it.
-6. Animate group transforms or focused generator properties instead of rebuilding vertices unnecessarily.
+3. Put each distinct icon, control, or independently managed visual element on its own Shape Layer by default. Combine elements only when the user requests it or a shared layer-level transform/operator is intentional.
+4. Center each icon part around local `[0, 0]`, then place it with the vector group's Transform.
+5. Keep parts of the same element in separate named vector groups when they need independent styling or animation.
+6. Add geometry first, then the operators and Fill/Stroke that should act on it.
+7. Animate group transforms or focused generator properties instead of rebuilding vertices unnecessarily.
 
 ## Hierarchy and Ordering
 
@@ -37,6 +38,7 @@ Shape Layer
 - `addProperty()` on an indexed group can invalidate references to its existing children. Set a newly added child's values before adding the next child, or reacquire it by verified `matchName` or a unique name.
 - Keep geometry centered and use Group Transform Position for layout. This separates reusable icon geometry from scene placement.
 - Use Layer Transform for whole-icon placement only when all groups should move together.
+- Prefer one Shape Layer per distinct element for clearer selection, animation, inspection, and replacement. A single Shape Layer containing many unrelated elements is an explicit optimization or user-directed layout, not the default.
 
 ## Core Patterns
 
