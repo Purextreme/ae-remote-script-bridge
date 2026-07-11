@@ -113,7 +113,7 @@ Use this only when animation, transitions, temporal effects, or multiple sequent
 
 Prioritize geometric quality over literal reproduction when recreating shapes from screenshots, video, or web images. A reference can contain incidental perspective, tilt, scaling artifacts, or capture distortion. For inherently regular objects such as icons, mouse cursors, symmetric marks, and rectangular controls, first build a clean, canonical, front-facing shape with correct proportions and curves. Then separately apply rotation, scale, position, or other scene-fitting transforms. If a one-step recreation would reduce quality, split construction from placement; when the intended angle or distortion is ambiguous, ask the user rather than baking accidental reference-image skew into the asset.
 
-For programmatic Shape Layer construction, read the verified core paths in `references/ae-agent/AE_MATCHNAME_TABLE.md`. Probe operators not listed there before using them.
+For programmatic Shape Layer construction, read `references/ae-agent/tasks/shape_layers.md` and the verified paths in `references/ae-agent/AE_MATCHNAME_TABLE.md`. Probe operators not listed there before using them.
 
 ## Verification Workflow
 
@@ -189,5 +189,6 @@ python client\send_to_ae.py --no-protect scripts\ae_test_create_comp.jsx
 python client\send_to_ae.py --no-protect scripts\ae_test_modify_active_comp.jsx
 python client\send_to_ae.py --no-protect scripts\ae_test_error.jsx
 python client\send_to_ae.py --no-protect scripts\ae_test_integration_ops.jsx
+python client\send_to_ae.py --no-protect scripts\ae_test_shape_ui.jsx --capture-frame --capture-method render-queue --capture-time 1
 python client\send_to_ae.py --no-protect scripts\ae_inspect_project.jsx
 ```

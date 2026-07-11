@@ -55,19 +55,67 @@ Only common verified match names are included. Do not guess missing values.
 
 ## Shape Layer Core
 
-These paths were probed in AE 2024. Reacquire properties after each `addProperty()` call when continuing to edit an indexed group.
+These paths were probed in AE 2024. Reacquire child properties after each `addProperty()` call on an indexed group.
+
+### Containers and Transform
 
 | Display | matchName | Notes |
 |---|---|---|
+| Shape Layer | `ADBE Vector Layer` | Shape layer root. |
 | Contents | `ADBE Root Vectors Group` | Shape layer root contents. |
 | Group | `ADBE Vector Group` | Add inside root or group contents. |
 | Group Contents | `ADBE Vectors Group` | Child contents of a vector group. |
 | Group Transform | `ADBE Vector Transform Group` | Transform scoped to a vector group. |
+| Group Position | `ADBE Vector Position` | Local group position. |
+| Group Scale | `ADBE Vector Scale` | Local group scale. |
+| Group Rotation | `ADBE Vector Rotation` | Local group rotation. |
+| Group Opacity | `ADBE Vector Group Opacity` | Local group opacity. |
+
+### Generators and Paths
+
+| Display | matchName | Notes |
+|---|---|---|
 | Rectangle Path | `ADBE Vector Shape - Rect` | Parametric rectangle. |
+| Rectangle Size | `ADBE Vector Rect Size` | `[width, height]`. |
+| Rectangle Position | `ADBE Vector Rect Position` | Local generator position. |
+| Rectangle Roundness | `ADBE Vector Rect Roundness` | Corner radius. |
 | Ellipse Path | `ADBE Vector Shape - Ellipse` | Parametric ellipse. |
-| Bezier Path | `ADBE Vector Shape - Group` | Freeform shape path. |
-| Fill | `ADBE Vector Graphic - Fill` | Vector fill operator. |
-| Stroke | `ADBE Vector Graphic - Stroke` | Vector stroke operator. |
+| Ellipse Size | `ADBE Vector Ellipse Size` | `[width, height]`. |
+| Ellipse Position | `ADBE Vector Ellipse Position` | Local generator position. |
+| Polystar Path | `ADBE Vector Shape - Star` | Star or polygon generator. |
+| Polystar Type | `ADBE Vector Star Type` | Star/polygon selector. |
+| Polystar Points | `ADBE Vector Star Points` | Point count. |
+| Inner Radius | `ADBE Vector Star Inner Radius` | Star inner radius. |
+| Outer Radius | `ADBE Vector Star Outer Radius` | Star/polygon outer radius. |
+| Bezier Path Group | `ADBE Vector Shape - Group` | Freeform path container. |
+| Bezier Path | `ADBE Vector Shape` | `Shape` value with relative tangents. |
+
+### Style and Operators
+
+| Display | matchName | Notes |
+|---|---|---|
+| Fill | `ADBE Vector Graphic - Fill` | Add in the same group as its geometry. |
+| Fill Color | `ADBE Vector Fill Color` | RGB array, values 0..1. |
+| Fill Opacity | `ADBE Vector Fill Opacity` | 0..100. |
+| Stroke | `ADBE Vector Graphic - Stroke` | Add in the same group as its geometry. |
+| Stroke Color | `ADBE Vector Stroke Color` | RGB array, values 0..1. |
+| Stroke Opacity | `ADBE Vector Stroke Opacity` | 0..100. |
+| Stroke Width | `ADBE Vector Stroke Width` | Pixel width. |
+| Stroke Line Cap | `ADBE Vector Stroke Line Cap` | Value `2` produced round caps in AE 2024. |
+| Stroke Line Join | `ADBE Vector Stroke Line Join` | Value `2` produced round joins in AE 2024. |
+| Trim Paths | `ADBE Vector Filter - Trim` | Line reveal and loader operator. |
+| Trim Start | `ADBE Vector Trim Start` | Percentage. |
+| Trim End | `ADBE Vector Trim End` | Percentage. |
+| Trim Offset | `ADBE Vector Trim Offset` | Degrees. |
+| Repeater | `ADBE Vector Filter - Repeater` | Repeated geometry operator. |
+| Repeater Copies | `ADBE Vector Repeater Copies` | Copy count. |
+| Repeater Offset | `ADBE Vector Repeater Offset` | Source-copy offset. |
+| Repeater Transform | `ADBE Vector Repeater Transform` | Repeater-local transform group. |
+| Repeater Position | `ADBE Vector Repeater Position` | Per-copy position delta. |
+| Round Corners | `ADBE Vector Filter - RC` | Rounds compatible paths. |
+| Round Corners Radius | `ADBE Vector RoundCorner Radius` | Radius in pixels. |
+| Merge Paths | `ADBE Vector Filter - Merge` | Boolean-style path combination. |
+| Merge Mode | `ADBE Vector Merge Type` | Probe desired mode visually before relying on non-default values. |
 
 ## Common Effects
 

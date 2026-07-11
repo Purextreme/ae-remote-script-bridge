@@ -1,6 +1,6 @@
 # AE Core Rules
 
-Use this file for normal JSX work. Read a task card only for footage replacement or Render Queue work. Read the matchName table only when a property or effect identifier is needed.
+Use this file for normal JSX work. Read a task card for Shape Layer construction, footage replacement, or Render Queue work. Read the matchName table only when a property or effect identifier is needed.
 
 ## Always
 
@@ -45,5 +45,5 @@ var effects = layer.property("ADBE Effect Parade");
 ## Verify In AE
 
 - Render/output templates are localized and user-configurable.
-- Shape operators, image-sequence range options, AE 26 dropdown fields, and 3D Model Layer APIs are `needs_verify`.
+- Shape operators beyond the verified core table, image-sequence range options, AE 26 dropdown fields, and 3D Model Layer APIs are `needs_verify`.
 - `app.project.renderQueue.render()` blocks. Treat it as a deliberate final action, not a routine inspection step.

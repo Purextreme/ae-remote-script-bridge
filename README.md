@@ -18,6 +18,7 @@ C:\Users\<user>\.codex\skills\ae-remote-script-bridge
 - AE ExtendScript 核心规则
 - 常用且经过验证的 matchName 速查表
 - 素材替换和 Render Queue 等高风险任务卡片
+- 原生 Shape Layer 图标与 UI 动画任务卡和集成测试
 - 可复用的 JSX 模板
 
 bridge 不需要硬编码 AE 路径。它会按顺序从 `--afterfx`、`AFTERFX_COM_PATH`、可选的本地 `config.json`，或 `C:\Program Files\Adobe` 下的自动发现结果解析 `AfterFX.com`。
