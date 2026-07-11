@@ -53,6 +53,22 @@ Only common verified match names are included. Do not guess missing values.
 | Audio | `ADBE Audio Group` | Audio group. |
 | Audio Levels | `ADBE Audio Levels` | Audio levels property. |
 
+## Shape Layer Core
+
+These paths were probed in AE 2024. Reacquire properties after each `addProperty()` call when continuing to edit an indexed group.
+
+| Display | matchName | Notes |
+|---|---|---|
+| Contents | `ADBE Root Vectors Group` | Shape layer root contents. |
+| Group | `ADBE Vector Group` | Add inside root or group contents. |
+| Group Contents | `ADBE Vectors Group` | Child contents of a vector group. |
+| Group Transform | `ADBE Vector Transform Group` | Transform scoped to a vector group. |
+| Rectangle Path | `ADBE Vector Shape - Rect` | Parametric rectangle. |
+| Ellipse Path | `ADBE Vector Shape - Ellipse` | Parametric ellipse. |
+| Bezier Path | `ADBE Vector Shape - Group` | Freeform shape path. |
+| Fill | `ADBE Vector Graphic - Fill` | Vector fill operator. |
+| Stroke | `ADBE Vector Graphic - Stroke` | Vector stroke operator. |
+
 ## Common Effects
 
 | Display | matchName | Notes |
@@ -68,9 +84,8 @@ Only common verified match names are included. Do not guess missing values.
 
 | Area | Status | Notes |
 |---|---|---|
-| Shape layer contents and operators | `needs_verify` | Source docs are sparse and workflows are error-prone. Probe in AE before using. |
+| Shape operators beyond the core table | `needs_verify` | Probe repeaters, trim paths, merge paths, and other operators before use. |
 | Render/output module template names | `needs_verify` | Names depend on AE version/language/user templates. |
 | Import image sequence range options | `needs_verify` | Some range fields are undocumented in source docs. |
 | New AE 26 dropdown menu property fields | `needs_verify` | Version-sensitive. Probe `app.version` first. |
 | 3D Model Layer APIs | `needs_verify` | New and sparse. Avoid in generic templates. |
-

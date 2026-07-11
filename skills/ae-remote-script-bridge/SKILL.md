@@ -57,7 +57,7 @@ or with an explicit AE path:
 python client\send_to_ae.py --afterfx "C:\path\to\AfterFX.com" scripts\your_script.jsx
 ```
 
-Use `--timeout-seconds <seconds>` when a deliberate long-running operation needs more than the default 60-second limit.
+Use `--timeout-seconds <seconds>` when a deliberate long-running operation needs more than the default 60-second limit. A timeout stops the client wait but cannot guarantee that AE stopped an already-running JSX. After a timeout, treat project state as unknown; wait for AE to respond and run a read-only inspection before any further mutation.
 
 By default, `send_to_ae.py` protects the user's project before running a target script:
 
@@ -68,7 +68,7 @@ By default, `send_to_ae.py` protects the user's project before running a target 
 
 If the project is unsaved or dirty, the bridge writes an `[AE ERROR]` result for the agent and shows an AE alert for the user before the target JSX runs. Use `--no-protect` only for read-only checks, disposable bridge tests, or explicitly approved recovery workflows.
 
-For multi-command agent work, generate one stable `--operation-id` for the user request and pass it to every mutating bridge call in that request. The first call performs the saved/clean check and creates the backup; later calls with the same `--operation-id` reuse that backup and do not block on dirty state created by earlier calls. Use a new `--operation-id` for the next user request.
+For multi-command agent work, generate one stable `--operation-id` for the user request and pass it to every mutating bridge call in that request. The first call performs the saved/clean check and creates the backup; later calls with the same `--operation-id` reuse that backup and do not block on dirty state created by earlier calls. Protection state expires after 24 hours. Use a new `--operation-id` for the next user request.
 
 The bridge injects these ExtendScript globals:
 
@@ -99,7 +99,7 @@ If colors look suspicious, or if the project depends on HDR, linear workflow, or
 python client\send_to_ae.py scripts\your_script.jsx --capture-frame --capture-method render-queue --capture-time-mode two-thirds
 ```
 
-The Render Queue method isolates the capture item, temporarily disables existing queued items, restores them, and removes the capture item after rendering.
+The Render Queue method isolates the capture item, temporarily disables existing queued items, restores them, restores the comp time, and removes the capture item after rendering. Render and output template names depend on the local AE installation; treat a missing `Best Settings` or `PNG` template as a local configuration failure.
 
 For animated comps or after a batch of timing-sensitive changes, request a low-frame-rate preview video instead of relying only on a still frame:
 
@@ -107,11 +107,13 @@ For animated comps or after a batch of timing-sensitive changes, request a low-f
 python client\send_to_ae.py scripts\your_script.jsx --capture-video
 ```
 
-Use this only when animation, transitions, temporal effects, or multiple sequential edits need visual verification. The preview video path temporarily switches the project to `8 bpc`, captures a capped PNG sequence with `saveFrameToPng`, restores the original bit depth, then assembles a `preview.mp4` and `preview_contact_sheet.png` in the current run directory. It does not use or modify Render Queue. Defaults are 4 fps playback, at most 48 sampled frames, and a 960 px maximum edge. Treat this as an agent inspection preview, not a final color-fidelity render.
+Use this only when animation, transitions, temporal effects, or multiple sequential edits need visual verification. The preview video path temporarily switches the project to `8 bpc`, captures a capped PNG sequence with `saveFrameToPng`, restores the original bit depth, then writes the MP4 and contact sheet under the current run's `temp/video_preview/` directory. It does not use or modify Render Queue. Defaults are 4 fps playback, at most 48 sampled frames, and a 960 px maximum edge. Treat this as an agent inspection preview, not a final color-fidelity render.
 
 ## Reference Images and Shape Construction
 
 Prioritize geometric quality over literal reproduction when recreating shapes from screenshots, video, or web images. A reference can contain incidental perspective, tilt, scaling artifacts, or capture distortion. For inherently regular objects such as icons, mouse cursors, symmetric marks, and rectangular controls, first build a clean, canonical, front-facing shape with correct proportions and curves. Then separately apply rotation, scale, position, or other scene-fitting transforms. If a one-step recreation would reduce quality, split construction from placement; when the intended angle or distortion is ambiguous, ask the user rather than baking accidental reference-image skew into the asset.
+
+For programmatic Shape Layer construction, read the verified core paths in `references/ae-agent/AE_MATCHNAME_TABLE.md`. Probe operators not listed there before using them.
 
 ## Verification Workflow
 
@@ -121,7 +123,7 @@ After any meaningful AE operation, run:
 python client\send_to_ae.py --no-protect scripts\ae_inspect_project.jsx
 ```
 
-Then read `<Run Dir>/project_structure.json` and compare concrete facts: comp names, dimensions, duration, layer names, text, source names, effect counts, keyframe counts, output files, and saved project paths.
+Then read `<Run Dir>/project_structure.json` and compare its concrete facts: project path, active item, comp names and dimensions, layer names and timing, text, source names, effect counts, and opacity keyframe counts. Use a task-specific report for other properties, keyframes, Render Queue state, and output files.
 
 When visual appearance matters, also capture a frame after the operation or batch. Do not capture after every tiny change. Prefer `--capture-time-mode middle` or `--capture-time-mode two-thirds` for animated comps unless the user's request points to a specific time. Use the default `saveframe-8bpc` capture for routine checks; use `--capture-method render-queue` only when color fidelity needs confirmation. If the comp has meaningful animation or the task changed timing across several moments, use `--capture-video` once at the end so the agent can inspect both the generated MP4 and contact sheet.
 

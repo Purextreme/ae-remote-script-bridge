@@ -28,19 +28,28 @@ if (!file.exists) {
 }
 
 var importOptions = new ImportOptions(file);
-var footage = app.project.importFile(importOptions);
-
 var comp = app.project.activeItem;
-if (comp instanceof CompItem && comp.selectedLayers.length > 0) {
-    var layer = comp.selectedLayers[0];
-    if (layer instanceof AVLayer) {
-        app.beginUndoGroup("Replace Source");
-        try {
-            layer.replaceSource(footage, false);
-        } finally {
-            app.endUndoGroup();
-        }
+if (!(comp instanceof CompItem) || comp.selectedLayers.length < 1) {
+    throw new Error("Select one layer in a composition.");
+}
+
+var layer = comp.selectedLayers[0];
+if (!(layer instanceof AVLayer)) {
+    throw new Error("The selected layer cannot replace its source.");
+}
+
+var footage = null;
+app.beginUndoGroup("Import and Replace Source");
+try {
+    footage = app.project.importFile(importOptions);
+    layer.replaceSource(footage, false);
+} catch (err) {
+    if (footage !== null) {
+        footage.remove();
     }
+    throw err;
+} finally {
+    app.endUndoGroup();
 }
 ```
 
@@ -50,4 +59,3 @@ if (comp instanceof CompItem && comp.selectedLayers.length > 0) {
 - Replacing source on a non-AV layer.
 - Using `fixExpressions=true` during bulk replacement.
 - Image sequence range options are partly undocumented; mark `needs_verify`.
-

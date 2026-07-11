@@ -31,6 +31,7 @@ DEFAULT_ADOBE_DIR = Path("C:/Program Files/Adobe")
 BACKUP_PREFIX = "agent backup"
 BACKUP_DIR_NAME = "agent backups"
 MAX_BACKUPS = 10
+PROTECTION_STATE_MAX_AGE = dt.timedelta(hours=24)
 
 
 def fail(message):
@@ -325,6 +326,7 @@ def run_afterfx_script(
             + str(timeout_seconds)
             + " seconds. JSX: "
             + str(jsx_path)
+            + "\nAfter Effects may still be executing the JSX. Treat project state as unknown and run a read-only inspection before any further mutation."
         ) from err
 
     try:
@@ -381,9 +383,23 @@ def load_protection_state():
         return {}
     try:
         with PROTECTION_STATE_PATH.open("r", encoding="utf-8-sig") as state_file:
-            return json.load(state_file)
+            state = json.load(state_file)
     except (OSError, json.JSONDecodeError):
         return {}
+
+    now = dt.datetime.now()
+    active_state = {}
+    for operation_id, operation_state in state.items():
+        try:
+            created_at = dt.datetime.fromisoformat(operation_state["createdAt"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if now - created_at <= PROTECTION_STATE_MAX_AGE:
+            active_state[operation_id] = operation_state
+
+    if active_state != state:
+        save_protection_state(active_state)
+    return active_state
 
 
 def save_protection_state(state):
@@ -508,6 +524,10 @@ def main():
         return fail("[INPUT ERROR]\n--capture-video-fps must be greater than 0.")
     if args.capture_video_max_frames < 0:
         return fail("[INPUT ERROR]\n--capture-video-max-frames cannot be negative.")
+    if args.capture_max_edge < 0:
+        return fail("[INPUT ERROR]\n--capture-max-edge cannot be negative.")
+    if args.capture_video_max_edge < 0:
+        return fail("[INPUT ERROR]\n--capture-video-max-edge cannot be negative.")
 
     try:
         afterfx_com_path = resolve_afterfx_path(args.afterfx)

@@ -61,7 +61,9 @@
 
     function textLayerValue(layer) {
         try {
-            return layer.property("Source Text").value.text;
+            var textGroup = layer.property("ADBE Text Properties");
+            var sourceText = textGroup.property("ADBE Text Document");
+            return sourceText.value.text;
         } catch (err) {
             return "";
         }

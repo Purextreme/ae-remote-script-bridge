@@ -8,6 +8,7 @@ DEFAULT_CAPTURE_MAX_EDGE = 1500
 DEFAULT_VIDEO_CAPTURE_MAX_EDGE = 960
 DEFAULT_VIDEO_CAPTURE_FPS = 4.0
 DEFAULT_VIDEO_CAPTURE_MAX_FRAMES = 48
+FFMPEG_TIMEOUT_SECONDS = 60
 
 
 def to_extendscript_path(path):
@@ -209,6 +210,8 @@ def build_render_queue_capture_jsx(
     var queueRestored = false;
     var captureItemRemoved = false;
     var startedDirty = false;
+    var originalTime = 0;
+    var comp = null;
 
     function escapeJson(value) {
         var text = String(value);
@@ -353,10 +356,11 @@ def build_render_queue_capture_jsx(
         }
         startedDirty = !!app.project.dirty;
 
-        var comp = app.project.activeItem;
+        comp = app.project.activeItem;
         if (!(comp instanceof CompItem)) {
             throw new Error("Active item is not a composition. Open or select the composition to capture.");
         }
+        originalTime = comp.time;
 
         removeFile(outputBase.fsName);
         removeFile(outputBase.fsName + "00000");
@@ -390,6 +394,7 @@ def build_render_queue_capture_jsx(
         var outputPath = findOutputFile();
         removeCaptureItem();
         restoreDisabledItems();
+        comp.time = originalTime;
 
         if (outputPath === "") {
             writeResult(false, "Render Queue completed but no PNG output was found.", comp, captureTime, "");
@@ -400,6 +405,12 @@ def build_render_queue_capture_jsx(
     } catch (err) {
         removeCaptureItem();
         restoreDisabledItems();
+        try {
+            if (comp instanceof CompItem) {
+                comp.time = originalTime;
+            }
+        } catch (restoreTimeErr) {
+        }
         writeResult(false, err.toString() + " Line: " + (err.line || 0), null, 0, "");
     }
 })();""" % (
@@ -712,7 +723,9 @@ def make_contact_sheet(frame_paths, frame_times, contact_sheet_path):
     sheet.save(contact_sheet_path)
 
 
-def assemble_preview_video(video_path, playback_fps):
+def assemble_preview_video(
+    video_path, playback_fps, timeout_seconds=FFMPEG_TIMEOUT_SECONDS
+):
     ffmpeg_path = shutil.which("ffmpeg")
     if ffmpeg_path is None:
         return "ffmpeg was not found; MP4 preview was not generated."
@@ -736,7 +749,15 @@ def assemble_preview_video(video_path, playback_fps):
         "+faststart",
         str(video_path),
     ]
-    result = subprocess.run(command, capture_output=True, text=True)
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        return "ffmpeg timed out after " + str(timeout_seconds) + " seconds."
     if result.returncode != 0:
         return "ffmpeg failed: " + (result.stderr.strip() or "unknown error")
     return ""
