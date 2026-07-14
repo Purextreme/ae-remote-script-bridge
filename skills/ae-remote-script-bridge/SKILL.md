@@ -190,5 +190,6 @@ python client\send_to_ae.py --no-protect scripts\ae_test_modify_active_comp.jsx
 python client\send_to_ae.py --no-protect scripts\ae_test_error.jsx
 python client\send_to_ae.py --no-protect scripts\ae_test_integration_ops.jsx
 python client\send_to_ae.py --no-protect scripts\ae_test_shape_ui.jsx --capture-frame --capture-method render-queue --capture-time 1
+python client\send_to_ae.py --no-protect scripts\ae_test_smooth_curves.jsx --capture-frame --capture-time 1
 python client\send_to_ae.py --no-protect scripts\ae_inspect_project.jsx
 ```
